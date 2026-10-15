@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Management</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f9;
+            margin: 0;
+            padding: 25px;
+        }
+
+        h1, h2 {
+            color: #0c2451;
+        }
+
+        .form-box {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 500px;
+            margin-bottom: 25px;
+        }
+
+        input, button {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0;
+            box-sizing: border-box;
+        }
+
+        button {
+            background: #0c2451;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #1a3a6b;
+        }
+
+        .cancel {
+            background: #666;
+        }
+
+        .edit-btn {
+            background: #b8860b;
+        }
+
+        .delete-btn {
+            background: #b42318;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        th, td {
+            padding: 12px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+
+        th {
+            background: #0c2451;
+            color: white;
+        }
+
+        td button {
+            width: auto;
+            margin: 3px;
+        }
+
+        #message {
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Customer Management</h1>
+    
+     <a class="back" href="index.html">Back to Dashboard</a>
+<br>
+    <div class="form-box">
+        <h2 id="formTitle">Add Customer</h2>
+
+        <form id="customerForm">
+            <label for="name">Customer Name</label>
+            <input type="text" id="name" required maxlength="100">
+
+            <label for="phone">Phone Number</label>
+            <input type="tel" id="phone" maxlength="20">
+
+            <button type="submit" id="saveButton">Add Customer</button>
+            <button type="button" id="cancelButton" class="cancel"
+                    hidden>Cancel Edit</button>
+        </form>
+
+        <p id="message" role="status"></p>
+    </div>
+
+    <h2>Customer List</h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="customerTable">
+            <tr>
+                <td colspan="4">Loading customers...</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <script>
+        const API = 'http://localhost:3000/api/customers';
+
+        const form = document.getElementById('customerForm');
+        const nameInput = document.getElementById('name');
+        const phoneInput = document.getElementById('phone');
+        const message = document.getElementById('message');
+        const table = document.getElementById('customerTable');
+        const saveButton = document.getElementById('saveButton');
+        const cancelButton = document.getElementById('cancelButton');
+
+        let editingId = null;
+
+        async function loadCustomers() {
+            try {
+                const response = await fetch(API);
+
+                if (!response.ok) {
+                    throw new Error('Unable to load customers');
+                }
+
+                const customers = await response.json();
+                table.replaceChildren();
+
+                if (customers.length === 0) {
+                    const row = table.insertRow();
+                    const cell = row.insertCell();
+                    cell.colSpan = 4;
+                    cell.textContent = 'No customers found';
+                    return;
+                }
+
+                customers.forEach(customer => {
+                    const row = table.insertRow();
+
+                    [customer.id, customer.name, customer.phone || '-']
+                        .forEach(value => {
+                            const cell = row.insertCell();
+                            cell.textContent = value;
+                        });
+
+                    const actions = row.insertCell();
+
+                    const editButton = document.createElement('button');
+                    editButton.textContent = 'Edit';
+                    editButton.className = 'edit-btn';
+                    editButton.type = 'button';
+                    editButton.addEventListener('click', () => {
+                        editingId = customer.id;
+                        nameInput.value = customer.name || '';
+                        phoneInput.value = customer.phone || '';
+                        document.getElementById('formTitle').textContent =
+                            'Edit Customer';
+                        saveButton.textContent = 'Update Customer';
+                        cancelButton.hidden = false;
+                        message.textContent = '';
+                        nameInput.focus();
+                    });
+
+                    const deleteButton = document.createElement('button');
+                    deleteButton.textContent = 'Delete';
+                    deleteButton.className = 'delete-btn';
+                    deleteButton.type = 'button';
+                    deleteButton.addEventListener('click', async () => {
+                        if (!confirm('Delete this customer?')) return;
+
+                        try {
+                            const result = await fetch(
+                                API + '/' + customer.id,
+                                { method: 'DELETE' }
+                            );
+
+                            const data = await result.json();
+
+                            if (!result.ok) {
+                                throw new Error(data.error || 'Delete failed');
+                            }
+
+                            message.textContent = 'Customer deleted successfully';
+                            if (editingId === customer.id) resetForm();
+                            await loadCustomers();
+                        } catch (error) {
+                            message.textContent = 'Error: ' + error.message;
+                        }
+                    });
+
+                    actions.append(editButton, deleteButton);
+                });
+            } catch (error) {
+                table.replaceChildren();
+                const row = table.insertRow();
+                const cell = row.insertCell();
+                cell.colSpan = 4;
+                cell.textContent = 'Unable to load customers. Check server.';
+                message.textContent = error.message;
+            }
+        }
+
+        function resetForm() {
+            form.reset();
+            editingId = null;
+            document.getElementById('formTitle').textContent = 'Add Customer';
+            saveButton.textContent = 'Add Customer';
+            cancelButton.hidden = true;
+        }
+
+        cancelButton.addEventListener('click', () => {
+            resetForm();
+            message.textContent = '';
+        });
+
+        form.addEventListener('submit', async event => {
+            event.preventDefault();
+
+            const name = nameInput.value.trim();
+
+            if (!name) {
+                message.textContent = 'Please enter customer name';
+                return;
+            }
+
+            const data = {
+                name: name,
+                phone: phoneInput.value.trim()
+            };
+
+            const url = editingId === null
+                ? API
+                : API + '/' + editingId;
+
+            const method = editingId === null ? 'POST' : 'PUT';
+
+            try {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.error || 'Operation failed');
+                }
+
+                message.textContent = result.message;
+                resetForm();
+                await loadCustomers();
+            } catch (error) {
+                message.textContent = 'Error: ' + error.message;
+            }
+        });
+
+        loadCustomers();
+    </script>
+
+</body>
+</html>

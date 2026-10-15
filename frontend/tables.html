@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Table Management</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f1f5f9;
+            color: #1e293b;
+        }
+
+        header {
+            background: #0c2451;
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+
+        header h1 {
+            margin-top: 0;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 25px auto;
+            padding: 15px;
+        }
+
+        .top, .actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .panel {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 22px;
+            box-shadow: 0 2px 8px #00000010;
+        }
+
+        input, select, button, .back {
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        input, select {
+            max-width: 100%;
+        }
+
+        button, .back {
+            background: #0c2451;
+            color: white;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        button:hover, .back:hover {
+            background: #1a3a6b;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .delete {
+            background: #b91c1c;
+        }
+
+        .delete:hover {
+            background: #991b1b;
+        }
+
+        .edit {
+            background: #a16207;
+        }
+
+        form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 650px;
+        }
+
+        th, td {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            text-align: left;
+        }
+
+        th {
+            background: #e8eef8;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+        #message {
+            margin-top: 12px;
+            overflow-wrap: anywhere;
+        }
+
+        .status {
+            font-weight: bold;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 10px;
+            }
+
+            .panel {
+                padding: 14px;
+            }
+
+            form input, form select, form button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <h1>Restaurant Management System</h1>
+    <p>Restaurant Table Management</p>
+</header>
+
+<div class="container">
+
+    <div class="top">
+        <h2>Manage Tables</h2>
+        <a class="back" href="index.html">Back to Dashboard</a>
+    </div>
+
+    <!-- Add / Edit Table Form -->
+    <div class="panel">
+
+        <h3 id="formTitle">Add New Table</h3>
+
+        <form id="tableForm">
+
+            <input type="hidden" id="tableId">
+
+            <input
+                type="number"
+                id="tableNumber"
+                placeholder="Table Number"
+                min="1"
+                step="1"
+                required
+            >
+
+            <input
+                type="number"
+                id="capacity"
+                placeholder="Capacity"
+                min="1"
+                step="1"
+                value="4"
+                required
+            >
+
+            <select id="status" required>
+                <option value="Available">Available</option>
+                <option value="Occupied">Occupied</option>
+                <option value="Reserved">Reserved</option>
+            </select>
+
+            <button type="submit" id="saveButton">
+                Add Table
+            </button>
+
+            <button
+                type="button"
+                id="cancelButton"
+                hidden
+            >
+                Cancel Edit
+            </button>
+
+        </form>
+
+        <p id="message" role="status" aria-live="polite"></p>
+
+    </div>
+
+    <!-- Restaurant Tables List -->
+    <div class="panel">
+
+        <div class="top">
+            <h3>Restaurant Tables</h3>
+
+            <button type="button" id="refreshButton">
+                Refresh Tables
+            </button>
+        </div>
+
+        <div class="table-wrap">
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Table No</th>
+                        <th>Capacity</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+
+                <tbody id="tableBody">
+                    <tr>
+                        <td colspan="5">Loading tables...</td>
+                    </tr>
+                </tbody>
+            </table>
+
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // API URL
+    const API = "/api/rest_tables";
+
+    // HTML Elements
+    const form = document.getElementById("tableForm");
+    const tableBody = document.getElementById("tableBody");
+    const message = document.getElementById("message");
+
+    const tableIdInput = document.getElementById("tableId");
+    const tableNumberInput = document.getElementById("tableNumber");
+    const capacityInput = document.getElementById("capacity");
+    const statusInput = document.getElementById("status");
+
+    const formTitle = document.getElementById("formTitle");
+    const saveButton = document.getElementById("saveButton");
+    const cancelButton = document.getElementById("cancelButton");
+    const refreshButton = document.getElementById("refreshButton");
+
+    let tables = [];
+
+    // Read API response safely
+    async function readResponse(response) {
+        const text = await response.text();
+
+        let result;
+
+        try {
+            result = text ? JSON.parse(text) : {};
+        } catch {
+            throw new Error(
+                "Server returned HTML instead of JSON. Check API URL and server routes."
+            );
+        }
+
+        if (!response.ok) {
+            throw new Error(
+                result.error ||
+                result.message ||
+                "Request failed with status " + response.status
+            );
+        }
+
+        return result;
+    }
+
+    // Load all restaurant tables
+    async function loadTables() {
+        message.textContent = "";
+        refreshButton.disabled = true;
+
+        try {
+            const response = await fetch(API);
+            const data = await readResponse(response);
+
+            if (!Array.isArray(data)) {
+                throw new Error("Tables API did not return a list.");
+            }
+
+            tables = data;
+            renderTables();
+
+        } catch (error) {
+            console.error("Load tables error:", error);
+
+            tableBody.replaceChildren();
+
+            const row = document.createElement("tr");
+            const cell = document.createElement("td");
+
+            cell.colSpan = 5;
+            cell.textContent = "Failed to load tables.";
+
+            row.appendChild(cell);
+            tableBody.appendChild(row);
+
+            message.textContent = "Error: " + error.message;
+
+        } finally {
+            refreshButton.disabled = false;
+        }
+    }
+
+    // Display tables
+    function renderTables() {
+        tableBody.replaceChildren();
+
+        if (tables.length === 0) {
+            const row = document.createElement("tr");
+            const cell = document.createElement("td");
+
+            cell.colSpan = 5;
+            cell.textContent = "No tables found.";
+
+            row.appendChild(cell);
+            tableBody.appendChild(row);
+            return;
+        }
+
+        tables.forEach(table => {
+            const row = document.createElement("tr");
+
+            const idCell = document.createElement("td");
+            idCell.textContent = table.id;
+
+            const numberCell = document.createElement("td");
+            numberCell.textContent = table.table_no;
+
+            const capacityCell = document.createElement("td");
+            capacityCell.textContent = table.capacity;
+
+            const statusCell = document.createElement("td");
+            statusCell.textContent = table.status;
+            statusCell.className = "status";
+
+            const actionsCell = document.createElement("td");
+            const actionsDiv = document.createElement("div");
+
+            actionsDiv.className = "actions";
+
+            const editButton = document.createElement("button");
+            editButton.type = "button";
+            editButton.className = "edit";
+            editButton.textContent = "Edit";
+
+            editButton.addEventListener("click", () => {
+                editTable(table.id);
+            });
+
+            const deleteButton = document.createElement("button");
+            deleteButton.type = "button";
+            deleteButton.className = "delete";
+            deleteButton.textContent = "Delete";
+
+            deleteButton.addEventListener("click", () => {
+                deleteTable(table.id);
+            });
+
+            actionsDiv.appendChild(editButton);
+            actionsDiv.appendChild(deleteButton);
+            actionsCell.appendChild(actionsDiv);
+
+            row.appendChild(idCell);
+            row.appendChild(numberCell);
+            row.appendChild(capacityCell);
+            row.appendChild(statusCell);
+            row.appendChild(actionsCell);
+
+            tableBody.appendChild(row);
+        });
+    }
+
+    // Add or update table
+    form.addEventListener("submit", async function(event) {
+        event.preventDefault();
+
+        const id = tableIdInput.value;
+
+        const tableNumber = tableNumberInput.value.trim();
+        const capacity = Number(capacityInput.value);
+        const status = statusInput.value;
+
+        if (
+            !tableNumber ||
+            !Number.isInteger(Number(tableNumber)) ||
+            Number(tableNumber) < 1
+        ) {
+            message.textContent = "Enter a valid table number.";
+            return;
+        }
+
+        if (!Number.isInteger(capacity) || capacity < 1) {
+            message.textContent = "Enter a valid capacity.";
+            return;
+        }
+
+        const data = {
+            table_no: tableNumber,
+            capacity: capacity,
+            status: status
+        };
+
+        saveButton.disabled = true;
+        message.textContent = id ? "Updating table..." : "Adding table...";
+
+        try {
+            const response = await fetch(
+                id ? `${API}/${encodeURIComponent(id)} `: API,
+                {
+                    method: id ? "PUT" : "POST",
+
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+
+                    body: JSON.stringify(data)
+                }
+            );
+
+            const result = await readResponse(response);
+
+            message.textContent =
+                result.message || "Operation successful.";
+
+            resetForm();
+            await loadTables();
+
+        } catch (error) {
+            console.error("Save table error:", error);
+            message.textContent = "Error: " + error.message;
+
+        } finally {
+            saveButton.disabled = false;
+        }
+    });
+
+    // Edit table
+    function editTable(id) {
+        const table = tables.find(
+            item => String(item.id) === String(id)
+        );
+
+        if (!table) {
+            message.textContent = "Table not found.";
+            return;
+        }
+
+        tableIdInput.value = table.id;
+        tableNumberInput.value = table.table_no;
+        capacityInput.value = table.capacity;
+        statusInput.value = table.status;
+
+        formTitle.textContent = "Edit Table";
+        saveButton.textContent = "Update Table";
+        cancelButton.hidden = false;
+
+        message.textContent = "Edit the details and click Update Table.";
+
+        window.scrollTo({
+            top: 0,
+            behavior: "smooth"
+        });
+    }
+
+    // Delete table
+    async function deleteTable(id) {
+        const table = tables.find(
+            item => String(item.id) === String(id)
+        );
+
+        const confirmed = confirm(
+            "Are you sure you want to delete table " +
+            (table ? table.table_no : id) + "?"
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        message.textContent = "Deleting table...";
+
+        try {
+            const response = await fetch(
+                `${API}/${encodeURIComponent(id)}`,
+                {
+                    method: "DELETE"
+                }
+            );
+
+            const result = await readResponse(response);
+
+            message.textContent =
+                result.message || "Table deleted successfully.";
+
+            if (String(tableIdInput.value) === String(id)) {
+                resetForm();
+            }
+
+            await loadTables();
+
+        } catch (error) {
+            console.error("Delete table error:", error);
+            message.textContent = "Error: " + error.message;
+        }
+    }
+
+    // Reset form
+    function resetForm() {
+        form.reset();
+
+        tableIdInput.value = "";
+        capacityInput.value = 4;
+
+        formTitle.textContent = "Add New Table";
+        saveButton.textContent = "Add Table";
+        cancelButton.hidden = true;
+    }
+
+    // Cancel editing
+    cancelButton.addEventListener("click", function() {
+        resetForm();
+        message.textContent = "";
+    });
+
+    // Refresh table list
+    refreshButton.addEventListener("click", loadTables);
+
+    // Initial page load
+    loadTables();
+</script>
+
+</body>
+</html>

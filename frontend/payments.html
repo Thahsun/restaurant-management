@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Management</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f9;
+            margin: 0;
+            padding: 25px;
+        }
+
+        h1 {
+            color: #0c2451;
+        }
+
+        .payment-form {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 500px;
+            margin-bottom: 25px;
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0;
+            box-sizing: border-box;
+        }
+
+        button {
+            background: #0c2451;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        table {
+            width: 100%;
+            background: white;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+
+        th {
+            background: #0c2451;
+            color: white;
+        }
+
+        #message {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Payment Management</h1>
+ <a class="back" href="index.html">Back to Dashboard</a>
+    <div class="payment-form">
+        <h2>Add Payment</h2>
+
+        <form id="paymentForm">
+            <label>Order ID</label>
+            <input type="number" id="order_id"
+                   min="1" step="1" required>
+
+            <label>Amount (Rs.)</label>
+            <input type="number" id="amount"
+                   min="0.01" step="0.01" required>
+
+            <label>Payment Method</label>
+            <select id="payment_method" required>
+                <option value="">Select Method</option>
+                <option value="Cash">Cash</option>
+                <option value="Card">Card</option>
+                <option value="Online">Online</option>
+            </select>
+
+            <label>Payment Status</label>
+            <select id="payment_status" required>
+                <option value="Pending">Pending</option>
+                <option value="Completed">Completed</option>
+                <option value="Failed">Failed</option>
+            </select>
+
+            <button type="submit">Save Payment</button>
+        </form>
+
+        <p id="message"></p>
+    </div>
+
+    <h2>Payment Records</h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Order ID</th>
+                <th>Amount</th>
+                <th>Method</th>
+                <th>Status</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+
+        <tbody id="paymentTable">
+            <tr>
+                <td colspan="6">Loading...</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <script>
+        const API = 'http://localhost:3000/api/payments';
+
+        async function loadPayments() {
+            const table = document.getElementById('paymentTable');
+
+            try {
+                const response = await fetch(API);
+
+                if (!response.ok) {
+                    throw new Error('Unable to load payments');
+                }
+
+                const payments = await response.json();
+                table.replaceChildren();
+
+                if (payments.length === 0) {
+                    const row = table.insertRow();
+                    const cell = row.insertCell();
+                    cell.colSpan = 6;
+                    cell.textContent = 'No payments found';
+                    return;
+                }
+
+                payments.forEach(payment => {
+                    const row = table.insertRow();
+
+                    [
+                        payment.id,
+                        payment.order_id,
+                        'Rs. ' + payment.amount,
+                        payment.payment_method,
+                        payment.payment_status,
+                        payment.payment_date
+                    ].forEach(value => {
+                        const cell = row.insertCell();
+                        cell.textContent = value ?? '';
+                    });
+                });
+            } catch (error) {
+                table.replaceChildren();
+                const row = table.insertRow();
+                const cell = row.insertCell();
+                cell.colSpan = 6;
+                cell.textContent = 'Error loading payments. Check server.';
+            }
+        }
+
+        document.getElementById('paymentForm')
+            .addEventListener('submit', async function(event) {
+                event.preventDefault();
+
+                const message = document.getElementById('message');
+
+                const data = {
+                    order_id: Number(document.getElementById('order_id').value),
+                    amount: Number(document.getElementById('amount').value),
+                    payment_method: document.getElementById('payment_method').value,
+                    payment_status: document.getElementById('payment_status').value
+                };
+
+                message.textContent = 'Saving payment...';
+
+                try {
+                    const response = await fetch(API, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(data)
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(result.error || 'Payment failed');
+                    }
+
+                    message.textContent = 'Payment saved successfully!';
+                    this.reset();
+                    await loadPayments();
+                } catch (error) {
+                    message.textContent = 'Error: ' + error.message;
+                }
+            });
+
+        loadPayments();
+    </script>
+</body>
+</html>

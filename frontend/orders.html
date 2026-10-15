@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Order Management</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f9;
+            padding: 25px;
+        }
+
+        h1, h2 {
+            color: #0c2451;
+        }
+
+        form {
+            background: white;
+            padding: 20px;
+            margin-bottom: 25px;
+            border-radius: 8px;
+        }
+
+        label {
+            display: block;
+            margin-top: 12px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            box-sizing: border-box;
+        }
+
+        button {
+            margin-top: 15px;
+            padding: 10px 16px;
+            background: #0c2451;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        button:hover {
+            background: #1a3a6b;
+        }
+
+        table {
+            width: 100%;
+            background: white;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+
+        th {
+            background: #0c2451;
+            color: white;
+        }
+
+        #message {
+            margin-top: 15px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Order Management</h1>
+
+    <a href="index.html">Back to Dashboard</a>
+
+    <h2>Create New Order</h2>
+
+    <form id="orderForm">
+
+        <label for="customer_id">Customer:</label>
+        <select id="customer_id" required>
+            <option value="">Select Customer</option>
+        </select>
+
+        <label for="table_id">Restaurant Table:</label>
+        <select id="table_id" required>
+            <option value="">Select Table</option>
+        </select>
+
+        <label for="menu_item_id">Food Item:</label>
+        <select id="menu_item_id" required>
+            <option value="">Select Food</option>
+        </select>
+
+        <label for="quantity">Quantity:</label>
+        <input
+            type="number"
+            id="quantity"
+            min="1"
+            value="1"
+            required
+        >
+
+        <p>Unit Price: Rs. <span id="unitPrice">0</span></p>
+
+        <p>Total: Rs. <span id="totalPrice">0</span></p>
+
+        <button type="submit" id="placeOrderBtn">
+            Place Order
+        </button>
+
+        <p id="message"></p>
+
+    </form>
+
+    <h2>Orders</h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Order ID</th>
+                <th>Customer ID</th>
+                <th>Table ID</th>
+                <th>Total (Rs.)</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+
+        <tbody id="ordersTable"></tbody>
+    </table>
+
+    <script>
+        const customerSelect =
+            document.getElementById("customer_id");
+
+        const tableSelect =
+            document.getElementById("table_id");
+
+        const foodSelect =
+            document.getElementById("menu_item_id");
+
+        const quantityInput =
+            document.getElementById("quantity");
+
+        const unitPrice =
+            document.getElementById("unitPrice");
+
+        const totalPrice =
+            document.getElementById("totalPrice");
+
+        const message =
+            document.getElementById("message");
+
+        const ordersTable =
+            document.getElementById("ordersTable");
+
+        const orderForm =
+            document.getElementById("orderForm");
+
+        const placeOrderBtn =
+            document.getElementById("placeOrderBtn");
+
+        let foods = [];
+
+        // Load Customer, Table and Food dropdowns
+        async function loadDropdowns() {
+            message.textContent = "Loading data...";
+
+            try {
+                const [
+                    customersRes,
+                    tablesRes,
+                    menuRes
+                ] = await Promise.all([
+                    fetch("/api/customers"),
+                    fetch("/api/rest_tables"),
+                    fetch("/api/menu")
+                ]);
+
+                // Check API responses
+                if (
+                    !customersRes.ok ||
+                    !tablesRes.ok ||
+                    !menuRes.ok
+                ) {
+                    throw new Error(
+                        "Unable to load dropdown data"
+                    );
+                }
+
+                const customers = await customersRes.json();
+                const tables = await tablesRes.json();
+
+                foods = await menuRes.json();
+
+                // Clear old dropdown options
+                customerSelect.replaceChildren(
+                    new Option("Select Customer", "")
+                );
+
+                tableSelect.replaceChildren(
+                    new Option("Select Table", "")
+                );
+
+                foodSelect.replaceChildren(
+                    new Option("Select Food", "")
+                );
+
+                // Load Customers
+                customers.forEach(customer => {
+                    customerSelect.add(
+                        new Option(
+                            customer.name,
+                            customer.id
+                        )
+                    );
+                });
+
+                // Load Restaurant Tables
+                tables.forEach(table => {
+                    tableSelect.add(
+                        new Option(
+                            "Table " + table.table_no,
+                            table.id
+                        )
+                    );
+                });
+
+                // Load Available Food Items
+                foods.forEach(food => {
+                    if (
+                        food.status === "Available" &&
+                        Number(food.stock) > 0
+                    ) {
+                        foodSelect.add(
+                            new Option(
+                                food.name,
+                                food.id
+                            )
+                        );
+                    }
+                });
+
+                updatePrice();
+
+                await loadOrders();
+
+                message.textContent = "";
+
+            } catch (error) {
+                console.error(
+                    "Dropdown loading error:",
+                    error
+                );
+
+                message.textContent =
+                    "Failed to load data: " + error.message;
+            }
+        }
+
+        // Calculate Unit Price and Total
+        function updatePrice() {
+            const selectedFood = foods.find(
+                food =>
+                    String(food.id) === foodSelect.value
+            );
+
+            const price = selectedFood
+                ? Number(selectedFood.price)
+                : 0;
+
+            const quantity =
+                Number(quantityInput.value) || 0;
+
+            unitPrice.textContent = price;
+            totalPrice.textContent = price * quantity;
+        }
+
+        // Update price when food or quantity changes
+        foodSelect.addEventListener(
+            "change",
+            updatePrice
+        );
+
+        quantityInput.addEventListener(
+            "input",
+            updatePrice
+        );
+
+        // Place New Order
+        orderForm.addEventListener(
+            "submit",
+            async function (event) {
+                event.preventDefault();
+
+                message.textContent = "Saving order...";
+                placeOrderBtn.disabled = true;
+
+                try {
+                    const response = await fetch(
+                        "/api/orders",
+                        {
+                            method: "POST",
+
+                            headers: {
+                                "Content-Type":
+                                    "application/json"
+                            },
+
+                            body: JSON.stringify({
+                                customer_id:
+                                    customerSelect.value,
+
+                                table_id:
+                                    tableSelect.value,
+
+                                menu_item_id:
+                                    foodSelect.value,
+
+                                quantity:
+                                    Number(quantityInput.value)
+                            })
+                        }
+                    );
+
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(
+                            result.message ||
+                            result.error ||
+                            "Failed to place order"
+                        );
+                    }
+
+                    message.textContent =
+                        "Order placed successfully! Order ID: " +
+                        result.order_id +
+                        " | Total: Rs. " +
+                        result.total_amount;
+
+                    orderForm.reset();
+
+                    quantityInput.value = 1;
+
+                    updatePrice();
+
+                    await loadOrders();
+
+                } catch (error) {
+                    console.error(
+                        "Place order error:",
+                        error
+                    );
+
+                    message.textContent = error.message;
+
+                } finally {
+                    placeOrderBtn.disabled = false;
+                }
+            }
+        );
+
+        // Load Existing Orders
+        async function loadOrders() {
+            const response =
+                await fetch("/api/orders");
+
+            if (!response.ok) {
+                throw new Error(
+                    "Failed to load orders"
+                );
+            }
+
+            const orders = await response.json();
+
+            ordersTable.replaceChildren();
+
+            orders.forEach(order => {
+                const row =
+                    document.createElement("tr");
+
+                [
+                    order.id,
+                    order.customer_id,
+                    order.table_id,
+                    order.total_amount,
+                    order.order_date
+                ].forEach(value => {
+                    const cell =
+                        document.createElement("td");
+
+                    cell.textContent = value ?? "";
+
+                    row.appendChild(cell);
+                });
+
+                ordersTable.appendChild(row);
+            });
+        }
+
+        // Start the page
+        loadDropdowns();
+    </script>
+
+</body>
+</html>

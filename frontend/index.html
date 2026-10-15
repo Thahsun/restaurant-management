@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RestoDash - Restaurant Management</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="logo"><img src="images.jpeg" height="50px" width="50px"> RestoDash</div>
+            <nav>
+                
+                <a href="menu.html"class="active">📋 Menu</a>
+                <a href="customers.html">🤵 Customer</a>
+                <a href="orders.html">📝 Orders</a>
+                <a href="tables.html">🪑 Tables</a>
+                <a href="payments.html">🧾 Billing</a>
+                <a href="report.html">📊 Report</a>
+            </nav>
+            <div class="user">
+                <strong>Admin User</strong><br>
+                <small>admin@restodash.com</small>
+            </div>
+        </div>
+
+        <!-- Main -->
+        <div class="main">
+            <div class="header">
+                <div>
+                    <h2>Restaurant Management</h2>
+                    <p>Overview & Insights</p>
+                </div>
+                <button class="export-btn" onclick="window.location.href='report.html'">⬇ Export Report</button>
+            </div>
+
+            <!-- Dynamic Cards -->
+            <div class="cards">
+                <div class="card orange">
+                    <p>Total Sales</p>
+                    <h2 id="cardTotalSales">Rs. 0</h2>
+                    <span>From completed payments</span>
+                </div>
+                <div class="card white">
+                    <p>Orders</p>
+                    <h2 id="cardOrders">0</h2>
+                    <span>Total orders placed</span>
+                </div>
+                <div class="card light">
+                    <p>Tables</p>
+                    <h2 id="cardTables">0/0</h2>
+                    <span id="cardTableSub">Occupied • 0% full</span>
+                </div>
+                <div class="card light2">
+                    <p>Revenue</p>
+                    <h2 id="cardRevenue">Rs. 0</h2>
+                    <span>Total revenue earned</span>
+                </div>
+            </div>
+
+            <!-- Menu Table -->
+            <div class="menu-header">
+                <div>
+                    <h2>Menu Items</h2>
+                    <p>Manage your restaurant menu items</p>
+                </div>
+                <button type="button" onclick="window.location.href='menu.html'">
+                    Add Menu
+                </button>               
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>ITEM</th>
+                        <th>CATEGORY</th>
+                        <th>PRICE (Rs.)</th>
+                        <th>STOCK</th>
+                        <th>STATUS</th>
+                    </tr>
+                </thead>
+                <tbody id="dashboardMenuTable">
+                    <tr>
+                        <td colspan="5">Loading menu items...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        async function loadDashboardData() {
+            try {
+                // Fetch dashboard summary statistics
+                const statsResponse = await fetch("/api/dashboard-stats");
+                if (statsResponse.ok) {
+                    const stats = await statsResponse.json();
+
+                    document.getElementById("cardTotalSales").textContent = "Rs. " + Number(stats.total_sales).toLocaleString("en-LK", { minimumFractionDigits: 2 });
+                    document.getElementById("cardOrders").textContent = stats.orders;
+                    document.getElementById("cardTables").textContent = stats.tables_text;
+                    document.getElementById("cardTableSub").textContent = `Occupied • ${stats.tables_percentage}% full`;
+                    document.getElementById("cardRevenue").textContent = "Rs. " + Number(stats.revenue).toLocaleString("en-LK", { minimumFractionDigits: 2 });
+                }
+
+                // Fetch menu items for the table preview
+                const menuResponse = await fetch("/api/menu");
+                if (menuResponse.ok) {
+                    const items = await menuResponse.json();
+                    const tableBody = document.getElementById("dashboardMenuTable");
+                    tableBody.replaceChildren();
+
+                    if (items.length === 0) {
+                        tableBody.innerHTML = '<tr><td colspan="5">No menu items found.</td></tr>';
+                        return;
+                    }
+
+                    items.forEach(item => {
+                        const row = document.createElement("tr");
+
+                        const itemCell = document.createElement("td");
+                        itemCell.innerHTML = `<strong>${item.name}</strong>`;
+
+                        const catCell = document.createElement("td");
+                        catCell.textContent = item.category_name || "Uncategorized";
+
+                        const priceCell = document.createElement("td");
+                        priceCell.textContent = item.price;
+
+                        const stockCell = document.createElement("td");
+                        stockCell.textContent = item.stock;
+
+                        const statusCell = document.createElement("td");
+                        const span = document.createElement("span");
+                        span.className = item.status === "Available" ? "available" : "low";
+                        span.textContent = item.status;
+                        statusCell.appendChild(span);
+
+                        row.appendChild(itemCell);
+                        row.appendChild(catCell);
+                        row.appendChild(priceCell);
+                        row.appendChild(stockCell);
+                        row.appendChild(statusCell);
+
+                        tableBody.appendChild(row);
+                    });
+                }
+            } catch (error) {
+                console.error("Error loading dashboard data:", error);
+            }
+        }
+
+        loadDashboardData();
+    </script>
+</body>
+</html>

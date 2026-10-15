@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Restaurant Reports</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f1f5f9;
+            color: #1e293b;
+        }
+
+        header {
+            background: #0c2451;
+            color: white;
+            padding: 22px;
+            text-align: center;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 25px auto;
+            padding: 15px;
+        }
+
+        .top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        a, button {
+            background: #0c2451;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 5px;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 18px;
+            margin: 22px 0;
+        }
+
+        .card {
+            background: white;
+            padding: 22px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px #00000012;
+        }
+
+        .card h3 {
+            color: #64748b;
+            font-size: 15px;
+        }
+
+        .card p {
+            font-size: 26px;
+            font-weight: bold;
+            margin-bottom: 0;
+        }
+
+        .table-box {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th, td {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            text-align: left;
+        }
+
+        th {
+            background: #e8eef8;
+        }
+
+        #message {
+            color: #b91c1c;
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <h1>Restaurant Management System</h1>
+    <p>Sales and Payment Reports</p>
+</header>
+
+<div class="container">
+
+    <div class="top">
+        <h2>Reports Dashboard</h2>
+        <a href="index.html">Back to Dashboard</a>
+    </div>
+
+    <button onclick="loadReports()">Refresh Reports</button>
+
+    <p id="message"></p>
+
+    <div class="cards">
+        <div class="card">
+            <h3>Total Orders</h3>
+            <p id="totalOrders">0</p>
+        </div>
+
+        <div class="card">
+            <h3>Total Sales</h3>
+            <p id="totalSales">Rs. 0.00</p>
+        </div>
+
+        <div class="card">
+            <h3>Completed Payments</h3>
+            <p id="completedPayments">0</p>
+        </div>
+
+        <div class="card">
+            <h3>Total Payments</h3>
+            <p id="totalPayments">0</p>
+        </div>
+    </div>
+
+    <div class="table-box">
+        <h2>Payment Details</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Payment ID</th>
+                    <th>Order ID</th>
+                    <th>Amount (Rs.)</th>
+                    <th>Method</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+
+            <tbody id="paymentTable">
+                <tr>
+                    <td colspan="6">Loading reports...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+<script>
+    const API = "http://localhost:3000/api/payments";
+
+    async function loadReports() {
+        const message = document.getElementById("message");
+        const table = document.getElementById("paymentTable");
+
+        message.textContent = "";
+
+        try {
+            const response = await fetch(API);
+
+            if (!response.ok) {
+                throw new Error("Could not load payments");
+            }
+
+            const payments = await response.json();
+
+            const completed = payments.filter(
+                payment => payment.payment_status === "Completed"
+            );
+
+            const totalSales = completed.reduce(
+                (sum, payment) => sum + Number(payment.amount || 0),
+                0
+            );
+
+            document.getElementById("totalOrders").textContent =
+                new Set(payments.map(payment => payment.order_id)).size;
+
+            document.getElementById("totalSales").textContent =
+                "Rs. " + totalSales.toLocaleString("en-LK", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+
+            document.getElementById("completedPayments").textContent =
+                completed.length;
+
+            document.getElementById("totalPayments").textContent =
+                payments.length;
+
+            if (payments.length === 0) {
+                table.innerHTML =
+                    '<tr><td colspan="6">No payment records found.</td></tr>';
+                return;
+            }
+
+            table.innerHTML = payments.map(payment => `
+                <tr>
+                    <td>${payment.id}</td>
+                    <td>${payment.order_id}</td>
+                    <td>${Number(payment.amount).toLocaleString("en-LK", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    })}</td>
+                    <td>${payment.payment_method}</td>
+                    <td>${payment.payment_status}</td>
+                    <td>${payment.payment_date
+                        ? new Date(payment.payment_date).toLocaleDateString()
+                        : "-"}</td>
+                </tr>
+            `).join("");
+
+        } catch (error) {
+            message.textContent =
+                "Error loading reports. Please check whether the server is running.";
+            table.innerHTML =
+                '<tr><td colspan="6">Unable to load payment details.</td></tr>';
+            console.error(error);
+        }
+    }
+
+    loadReports();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menu Management</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 25px;
+            background: #f4f6f9;
+        }
+
+        h1 {
+            color: #0c2451;
+        }
+
+        a {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #0c2451;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        th, td {
+            padding: 12px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+
+        th {
+            background: #0c2451;
+            color: white;
+        }
+
+        button {
+            padding: 10px 15px;
+            background: #0c3151;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Restaurant Menu</h1>
+
+    <a href="index.html">Back to Dashboard</a>
+
+<h2>Add New Menu Item</h2>
+
+<form id="menuForm">
+    <label>Food Name:</label>
+    <input type="text" id="name" required>
+
+    <label>Category:</label>
+    <select id="category_id" required>
+        <option value="">Select Category</option>
+    </select>
+
+    <label>Price:</label>
+    <input type="number" id="price" min="0" step="0.01" required>
+
+    <label>Stock:</label>
+    <input type="number" id="stock" min="0" step="1" required>
+
+    <label>Status:</label>
+    <select id="status">
+        <option value="Available">Available</option>
+        <option value="Unavailable">Unavailable</option>
+    </select>
+
+    <button type="submit">Add Menu Item</button>
+</form>
+
+<p id="formMessage"></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h2>Menu Items</h2>
+
+    <p id="message">Loading menu...</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Food Name</th>
+                <th>Category</th>
+                <th>Price (Rs.)</th>
+                <th>Stock</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+
+        <tbody id="menuTable"></tbody>
+    </table>
+
+    <script>
+        async function loadMenu() {
+            const message = document.getElementById("message");
+            const table = document.getElementById("menuTable");
+
+            try {
+                const response = await fetch("/api/menu");
+
+                if (!response.ok) {
+                    throw new Error("Failed to load menu");
+                }
+
+                const items = await response.json();
+
+                table.replaceChildren();
+
+                items.forEach(item => {
+                    const row = document.createElement("tr");
+
+                    [
+                        item.id,
+                        item.name,
+                        item.category_name || "Uncategorized",
+                        item.price,
+                        item.stock,
+                        item.status
+                    ].forEach(value => {
+                        const cell = document.createElement("td");
+                        cell.textContent = value ?? "";
+                        row.appendChild(cell);
+                    });
+
+                    table.appendChild(row);
+                });
+
+                message.textContent = items.length
+                    ? "Menu loaded successfully!"
+                    : "No menu items found.";
+
+            } catch (error) {
+                message.textContent =
+                    "Unable to load menu. Please check the server.";
+                console.error(error);
+            }
+        }
+   async function loadCategories() {
+    try {
+        const response = await fetch("/api/categories");
+
+        if (!response.ok) {
+            throw new Error("Failed to load categories");
+        }
+
+        const categories = await response.json();
+        const select = document.getElementById("category_id");
+
+        categories.forEach(category => {
+            const option = document.createElement("option");
+            option.value = category.id;
+            option.textContent = category.name;
+            select.appendChild(option);
+        });
+    } catch (error) {
+        document.getElementById("formMessage").textContent =
+            "Unable to load categories.";
+        console.error(error);
+    }
+}
+
+document.getElementById("menuForm").addEventListener("submit", async function(event) {
+    event.preventDefault();
+
+    const message = document.getElementById("formMessage");
+
+    const item = {
+        name: document.getElementById("name").value.trim(),
+        category_id: Number(document.getElementById("category_id").value),
+        price: Number(document.getElementById("price").value),
+        stock: Number(document.getElementById("stock").value),
+        status: document.getElementById("status").value
+    };
+
+    try {
+        const response = await fetch("/api/menu", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(item)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.message || "Failed to add menu item");
+        }
+
+        message.textContent = "Menu item added successfully!";
+        document.getElementById("menuForm").reset();
+
+        await loadMenu();
+    } catch (error) {
+        message.textContent = error.message;
+        console.error(error);
+    }
+});
+
+loadCategories();
+
+
+
+
+
+
+
+        loadMenu();
+    </script>
+</body>
+</html>
